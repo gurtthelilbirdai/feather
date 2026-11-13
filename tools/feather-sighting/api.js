@@ -55,12 +55,13 @@ function readBody(req, cb) {
   });
 }
 
-const NTFY = 'https://ntfy.sh/gurt-feather-sighting';
-function ntfyPost(payload) {
+const NTFY_HOSTS = ['https://ntfy.nerdvpn.de', 'https://ntfy.sh'];
+const TOPIC = '/gurt-feather-sighting';
+function ntfyPostOne(host, payload) {
   return new Promise(resolve => {
     try {
       const data = JSON.stringify(payload);
-      const u = new URL(NTFY);
+      const u = new URL(host + TOPIC);
       const req = https.request(u, { method: 'POST', timeout: 5000, headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, r => {
         r.resume(); resolve(r.statusCode < 400);
       });
@@ -69,6 +70,12 @@ function ntfyPost(payload) {
       req.end(data);
     } catch (e) { resolve(false); }
   });
+}
+async function ntfyPost(payload) {
+  for (const host of NTFY_HOSTS) {
+    if (await ntfyPostOne(host, payload)) return true;
+  }
+  return false;
 }
 
 function now() { return new Date().toISOString(); }
