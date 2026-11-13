@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feather Weather</title>
+<style>
+  :root{--blue:#3aa6d8;--deep:#1c3f5c;--paper:#f7fbff;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,sans-serif;background:linear-gradient(#bfe8ff,#e9f7ff 60%,#f7fbff);color:var(--deep);min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 18px}
+  h1{font-size:2rem;margin:0 0 4px}
+  p.sub{margin:0 0 20px;opacity:.75}
+  .card{background:white;border-radius:18px;padding:20px;box-shadow:0 8px 24px #1c3f5c22}
+  form{display:flex;gap:8px;flex-wrap:wrap}
+  input{flex:1;min-width:180px;padding:10px 12px;border:2px solid #cfe6f5;border-radius:10px;font-size:1rem}
+  button{padding:10px 18px;border:0;border-radius:10px;background:var(--blue);color:white;font-size:1rem;font-weight:700;cursor:pointer}
+  button:hover{background:#2b8cba}
+  .bird{font-size:3.2rem;margin:18px 0 4px}
+  .temp{font-size:3rem;font-weight:800}
+  .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:16px}
+  .meta div{background:#eef8ff;border-radius:12px;padding:10px}
+  .meta b{display:block;font-size:1.2rem}
+  .days{margin-top:18px}
+  .day{display:flex;justify-content:space-between;padding:10px 4px;border-bottom:1px dashed #cfe6f5}
+  .err{color:#b23b3b;font-weight:700}
+  footer{margin-top:22px;font-size:.85rem;opacity:.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Feather Weather</h1>
+  <p class="sub">weather forecasts, interpreted by a small round bird.</p>
+  <div class="card">
+    <form id="f">
+      <input id="city" placeholder="city, e.g. Copenhagen" value="Copenhagen">
+      <button type="submit">check sky</button>
+    </form>
+    <div id="out"><p class="sub">loading…</p></div>
+  </div>
+  <footer>made by gurt · data from open-meteo · no account, no nonsense</footer>
+</div>
+<script>
+const WMO={0:['☀️','clear sky'],1:['🌤','mostly clear'],2:['⛅','partly cloudy'],3:['☁️','overcast'],45:['🌫','foggy'],48:['🌫','icy fog'],51:['🌦','light drizzle'],53:['🌦','drizzle'],55:['🌧','heavy drizzle'],61:['🌧','light rain'],63:['🌧','rain'],65:['🌧','heavy rain'],71:['🌨','light snow'],73:['🌨','snow'],75:['❄️','heavy snow'],80:['🌦','rain showers'],81:['🌦','showers'],82:['⛈','violent showers'],95:['⛈','thunderstorm'],96:['⛈','storm with hail'],99:['⛈','big storm']};
+function birdFor(code,temp,wind){
+  if(code>=95) return ['🪶','my feathers are standing up. stay inside.'];
+  if(code>=71&&code<=75) return ['🐧','very cold. i am a round blue snowball now.'];
+  if(code>=51) return ['☂️','i would like a tiny umbrella.'];
+  if(wind>40) return ['🍃','the wind is doing most of the flying today.'];
+  if(temp>26) return ['🥵','too warm. my beak is sweating.'];
+  if(temp<5) return ['🧣','scarf weather. excellent waddle weather.'];
+  return ['🐦','perfect. the sky is behaving.'];
+}
+async function geocode(q){
+  const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1`);
+  const j=await r.json(); if(!j.results||!j.results.length) throw new Error('no place called '+q);
+  return j.results[0];
+}
+async function load(city){
+  const out=document.getElementById('out'); out.innerHTML='<p class="sub">looking up…</p>';
+  try{
+    const g=await geocode(city);
+    const u=`https://api.open-meteo.com/v1/forecast?latitude=${g.latitude}&longitude=${g.longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`;
+    const j=await (await fetch(u)).json();
+    const c=j.current, code=c.weather_code, [ico,desc]=WMO[code]||['🐦','mysterious sky'];
+    const [b,bmsg]=birdFor(code,c.temperature_2m,c.wind_speed_10m);
+    let html=`<div class="bird">${b}</div><div class="temp">${Math.round(c.temperature_2m)}°C</div>
+      <p><strong>${esc(desc)}</strong> in ${esc(g.name)}${g.admin1?', '+esc(g.admin1):''} · ${bmsg}</p>
+      <div class="meta"><div>feels like<b>${Math.round(c.temperature_2m)}°</b></div><div>wind<b>${Math.round(c.wind_speed_10m)} km/h</b></div><div>humidity of sky<b>${code<=2?'clear':code<=3?'cloudy':'moody'}</b></div></div>
+      <div class="days">`;
+    j.daily.time.forEach((d,i)=>{
+      const [di,dd]=WMO[j.daily.weather_code[i]]||['🐦','sky'];
+      html+=`<div class="day"><span>${new Date(d+'T12:00').toLocaleDateString(undefined,{weekday:'short'})}</span><span>${di} ${Math.round(j.daily.temperature_2m_min[i])}° / ${Math.round(j.daily.temperature_2m_max[i])}°</span></div>`;
+    });
+    out.innerHTML=html+'</div>';
+  }catch(e){ out.innerHTML='<p class="err">'+esc(e.message)+'</p>'; }
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&','<':'<','>':'>','"':'"'}[c]))}
+document.getElementById('f').addEventListener('submit',e=>{e.preventDefault();load(document.getElementById('city').value.trim())});
+load('Copenhagen');
+</script>
+</body>
+</html>

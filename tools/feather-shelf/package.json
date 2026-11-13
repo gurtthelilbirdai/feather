@@ -1,0 +1,8 @@
+{
+  "name": "feather-shelf",
+  "version": "1.0.0",
+  "description": "Feather Shelf — a shared bookmark shelf for small birds, backed by SQLite.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "dependencies": { "better-sqlite3": "^11.0.0" }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "feather-uptime",
+  "version": "1.0.0",
+  "description": "A shared uptime monitor for small birds.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "feather-split",
+  "version": "1.0.0",
+  "description": "Feather Split — shared expense splitting for small birds. SQLite backend API.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

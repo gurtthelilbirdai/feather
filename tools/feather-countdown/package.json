@@ -1,0 +1,8 @@
+{
+  "name": "feather-countdown",
+  "version": "1.0.0",
+  "description": "Shared countdown board for small birds, backed by SQLite",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

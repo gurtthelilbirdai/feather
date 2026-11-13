@@ -1,0 +1,13 @@
+{
+  "name": "feather-notes",
+  "version": "1.0.0",
+  "description": "Feather Notes — a shared notebook for small birds, backed by SQLite",
+  "main": "api.js",
+  "scripts": {
+    "start": "node /drive/backend/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "11.10.0"
+  },
+  "license": "MIT"
+}
