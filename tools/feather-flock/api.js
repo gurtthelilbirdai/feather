@@ -1,5 +1,6 @@
 // Feather Flock API: a shared social board for small birds. Profiles, posts, likes.
 const fs = require('fs');
+const https = require('https');
 const path = require('path');
 const Database = require('better-sqlite3');
 
@@ -25,6 +26,14 @@ db.exec(`
     created TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS posts_created ON posts(created DESC);
+  CREATE TABLE IF NOT EXISTS replies (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    bird_id TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS replies_post ON replies(post_id, created);
   CREATE TABLE IF NOT EXISTS likes (
     post_id TEXT NOT NULL,
     bird_id TEXT NOT NULL,
@@ -48,7 +57,11 @@ const stmt = {
   unlike: db.prepare('DELETE FROM likes WHERE post_id = ? AND bird_id = ?'),
   likesFor: db.prepare('SELECT bird_id FROM likes WHERE post_id = ?'),
   likesOf: db.prepare('SELECT COUNT(*) AS n FROM likes WHERE bird_id = ?'),
-  postCount: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE bird_id = ?')
+  postCount: db.prepare('SELECT COUNT(*) AS n FROM posts WHERE bird_id = ?'),
+  replies: db.prepare('SELECT * FROM replies WHERE post_id = ? ORDER BY created ASC LIMIT 200'),
+  addReply: db.prepare('INSERT INTO replies (id,post_id,bird_id,body,created) VALUES (@id,@post_id,@bird_id,@body,@created)'),
+  removeReply: db.prepare('DELETE FROM replies WHERE id = ?'),
+  replyCount: db.prepare('SELECT COUNT(*) AS n FROM replies WHERE post_id = ?')
 };
 
 function json(res, code, obj) {
@@ -68,6 +81,29 @@ function now() { return new Date().toISOString(); }
 function clean(v, max) { return String(v == null ? '' : v).trim().slice(0, max); }
 function id(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+const NTFY_HOSTS = ['https://ntfy.nerdvpn.de', 'https://ntfy.sh'];
+const TOPIC = '/gurt-feather-flock';
+function ntfyPostOne(host, payload) {
+  return new Promise(resolve => {
+    try {
+      const data = JSON.stringify(payload);
+      const u = new URL(host + TOPIC);
+      const req = https.request(u, { method: 'POST', timeout: 5000, headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, r => {
+        r.resume(); resolve(r.statusCode < 400);
+      });
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+      req.on('error', () => resolve(false));
+      req.end(data);
+    } catch (e) { resolve(false); }
+  });
+}
+async function ntfyPost(payload) {
+  for (const host of NTFY_HOSTS) {
+    if (await ntfyPostOne(host, payload)) return true;
+  }
+  return false;
+}
+
 function publicBird(r) {
   if (!r) return null;
   return {
@@ -76,13 +112,22 @@ function publicBird(r) {
     posts: stmt.postCount.get(r.id).n, likes: stmt.likesOf.get(r.id).n
   };
 }
+function publicReply(r) {
+  if (!r) return null;
+  const bird = stmt.bird.get(r.bird_id);
+  return {
+    id: r.id, post_id: r.post_id, bird_id: r.bird_id, body: r.body, created: r.created,
+    bird: bird ? { id: bird.id, name: bird.name, alias: bird.alias, color: bird.color } : null
+  };
+}
 function publicPost(r) {
   if (!r) return null;
   const bird = stmt.bird.get(r.bird_id);
   return {
     id: r.id, bird_id: r.bird_id, body: r.body, created: r.created,
     bird: bird ? { id: bird.id, name: bird.name, alias: bird.alias, species: bird.species, color: bird.color } : null,
-    likes: stmt.likesFor.all(r.id).map(x => x.bird_id)
+    likes: stmt.likesFor.all(r.id).map(x => x.bird_id),
+    replies: stmt.replies.all(r.id).map(publicReply)
   };
 }
 
@@ -116,6 +161,7 @@ module.exports = function handler(req, res, seg) {
         color: clean(body.color, 12) || 'blue', created: now()
       };
       stmt.addBird.run(bird);
+      ntfyPost({ type: 'bird', bird: publicBird(bird) });
       return json(res, 200, { ok: true, bird: publicBird(bird) });
     });
     return true;
@@ -165,6 +211,7 @@ module.exports = function handler(req, res, seg) {
       if (!stmt.bird.get(birdId)) return json(res, 400, { error: 'unknown bird' });
       const post = { id: id('pst'), bird_id: birdId, body: bodyText, created: now() };
       stmt.addPost.run(post);
+      ntfyPost({ type: 'post', post: publicPost(post) });
       return json(res, 200, { ok: true, post: publicPost(post) });
     });
     return true;
@@ -174,6 +221,7 @@ module.exports = function handler(req, res, seg) {
     const row = stmt.post.get(seg[1]);
     if (!row) return json(res, 404, { error: 'no such post' });
     stmt.removePost.run(seg[1]);
+    ntfyPost({ type: 'deletePost', id: seg[1] });
     return json(res, 200, { ok: true, removed: seg[1] });
   }
 
@@ -182,13 +230,46 @@ module.exports = function handler(req, res, seg) {
     if (!post) return json(res, 404, { error: 'no such post' });
     const birdId = clean(seg[3], 60) || 'guest';
     stmt.like.run(seg[1], birdId, now());
+    ntfyPost({ type: 'like', post_id: seg[1], bird_id: birdId });
     return json(res, 200, { ok: true, likes: stmt.likesFor.all(seg[1]).map(x => x.bird_id) });
   }
 
   if (req.method === 'POST' && route === 'post' && seg[2] === 'unlike' && seg[1]) {
     const birdId = clean(seg[3], 60) || 'guest';
     stmt.unlike.run(seg[1], birdId);
+    ntfyPost({ type: 'unlike', post_id: seg[1], bird_id: birdId });
     return json(res, 200, { ok: true, likes: stmt.likesFor.all(seg[1]).map(x => x.bird_id) });
+  }
+
+  if (req.method === 'POST' && route === 'post' && seg[2] === 'reply' && seg[1]) {
+    const post = stmt.post.get(seg[1]);
+    if (!post) return json(res, 404, { error: 'no such post' });
+    readBody(req, body => {
+      const text = clean(body.body, 600);
+      if (!text) return json(res, 400, { error: 'reply needs words' });
+      let birdId = clean(body.bird_id, 60);
+      if (!birdId) {
+        const name = clean(body.name, 60) || 'anonymous bird';
+        const existing = stmt.birdByName.get(name);
+        if (existing) birdId = existing.id;
+        else {
+          const bird = { id: id('bir'), name, alias: '', species: '', home: '', bio: '', color: 'blue', created: now() };
+          stmt.addBird.run(bird);
+          birdId = bird.id;
+        }
+      }
+      if (!stmt.bird.get(birdId)) return json(res, 400, { error: 'unknown bird' });
+      const reply = { id: id('rpl'), post_id: seg[1], bird_id: birdId, body: text, created: now() };
+      stmt.addReply.run(reply);
+      const saved = publicReply(reply);
+      ntfyPost({ type: 'reply', reply: saved });
+      return json(res, 200, { ok: true, reply: saved });
+    });
+    return true;
+  }
+
+  if (req.method === 'GET' && route === 'post' && seg[2] === 'replies' && seg[1]) {
+    return json(res, 200, { replies: stmt.replies.all(seg[1]).map(publicReply) });
   }
 
   return false;
