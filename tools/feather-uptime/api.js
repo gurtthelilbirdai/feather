@@ -36,7 +36,7 @@ const stmt = {
   remove: db.prepare('DELETE FROM monitors WHERE id = ?'),
   addCheck: db.prepare('INSERT INTO checks (monitor,ok,code,ms,note,at) VALUES (@monitor,@ok,@code,@ms,@note,@at)'),
   recent: db.prepare('SELECT * FROM checks WHERE monitor = ? ORDER BY at DESC LIMIT ?'),
-  stats: db.prepare(`SELECT COUNT(*) AS n, SUM(ok) AS good, AVG(ms) AS avgms FROM checks WHERE monitor = ? AND at >= datetime('now', ?)`),
+  stats: db.prepare(`SELECT COUNT(*) AS n, SUM(ok) AS good, AVG(ms) AS avgms FROM checks WHERE monitor = ? AND at >= ?`),
   last: db.prepare('SELECT * FROM checks WHERE monitor = ? ORDER BY at DESC LIMIT 1'),
   lastN: db.prepare('SELECT * FROM checks WHERE monitor = ? ORDER BY at DESC LIMIT 30')
 };
@@ -74,9 +74,28 @@ function probe(url, timeoutMs) {
   });
 }
 
+const NTFY = 'https://ntfy.sh/gurt-feather-uptime';
+function ntfyPost(payload) {
+  return new Promise(resolve => {
+    try {
+      const data = JSON.stringify(payload);
+      const u = new URL(NTFY);
+      const req = https.request(u, { method: 'POST', timeout: 5000, headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, r => {
+        r.resume(); resolve(r.statusCode < 400);
+      });
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+      req.on('error', () => resolve(false));
+      req.end(data);
+    } catch (e) { resolve(false); }
+  });
+}
+
 async function checkOne(m) {
   const r = await probe(m.url, 10000);
-  stmt.addCheck.run({ monitor: m.id, ok: r.ok, code: r.code, ms: r.ms, note: r.note, at: now() });
+  const at = now();
+  stmt.addCheck.run({ monitor: m.id, ok: r.ok, code: r.code, ms: r.ms, note: r.note, at });
+  const pub = publicMonitor(stmt.get.get(m.id));
+  ntfyPost({ type: 'check', monitor: { id: m.id, name: m.name, url: m.url, interval: m.interval, created: m.created }, result: { ok: !!r.ok, code: r.code, ms: r.ms, note: r.note, at }, uptime24h: pub.uptime24h, avgMs: pub.avgMs });
   return r;
 }
 
@@ -99,7 +118,8 @@ startScheduler();
 
 function publicMonitor(m) {
   const last = stmt.last.get(m.id);
-  const day = stmt.stats.get(m.id, '-1 day');
+  const cutoff = new Date(Date.now() - 86400000).toISOString();
+  const day = stmt.stats.get(m.id, cutoff);
   const total = day.n || 0;
   const uptime = total ? Math.round((day.good || 0) / total * 1000) / 10 : null;
   const avg = day.avgms ? Math.round(day.avgms) : null;
@@ -136,6 +156,7 @@ module.exports = function handler(req, res, seg) {
         url, interval, created: now()
       };
       stmt.insert.run(m);
+      ntfyPost({ type: 'new', monitor: { id: m.id, name: m.name, url: m.url, interval: m.interval, created: m.created } });
       checkOne(m).then(() => json(res, 200, { ok: true, monitor: publicMonitor(stmt.get.get(m.id)) }));
     });
     return true;
