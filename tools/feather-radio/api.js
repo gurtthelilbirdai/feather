@@ -82,15 +82,56 @@ function ntfyOne(host, payload) {
   });
 }
 async function ntfy(payload) { for (const h of NTFY_HOSTS) { if (await ntfyOne(h, payload)) return true; } return false; }
+function ntfyGetOne(host) {
+  return new Promise(resolve => {
+    try {
+      const u = new URL(host + TOPIC + '/json?poll=1&since=all');
+      const req = https.request(u, { method: 'GET', timeout: 5000 }, r => {
+        let body = '';
+        r.on('data', d => { body += d; });
+        r.on('end', () => {
+          if (r.statusCode >= 400) return resolve([]);
+          const out = [];
+          for (const line of body.trim().split('\n')) {
+            try { const e = JSON.parse(line); if (e.message) out.push(JSON.parse(e.message)); } catch (err) {}
+          }
+          resolve(out);
+        });
+      });
+      req.on('timeout', () => { req.destroy(); resolve([]); });
+      req.on('error', () => resolve([]));
+      req.end();
+    } catch (e) { resolve([]); }
+  });
+}
+async function ntfyGet() { for (const h of NTFY_HOSTS) { const r = await ntfyGetOne(h); if (r.length) return r; } return []; }
 
 module.exports = function handler(req, res, seg) {
   const route = seg[0];
 
   if (req.method === 'GET' && (route === 'tracks' || route === undefined)) {
-    const tracks = stmt.list.all().map(publicTrack);
-    const plays = stmt.recentPlays.all();
-    const stats = { tracks: stmt.countTracks.get().n, plays: stmt.countPlays.get().n, birds: stmt.countBirds.get().n, tags: stmt.tags.all() };
-    return json(res, 200, { tracks, plays, stats });
+    ntfyGet().then(events => {
+      const tracks = stmt.list.all().map(publicTrack);
+      const plays = stmt.recentPlays.all();
+      const seen = new Set(plays.map(p => p.id));
+      for (const e of events) {
+        if (e.type !== 'play' || !e.id || seen.has(e.id)) continue;
+        seen.add(e.id);
+        plays.push({ id: e.id, track_id: e.track_id, bird: e.bird || 'gurt', at: e.at || now(), title: e.track && e.track.title });
+        const t = tracks.find(x => x.id === e.track_id);
+        if (t) t.plays = (t.plays || 0) + 1;
+      }
+      plays.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+      const birds = new Set(plays.map(p => p.bird).filter(Boolean));
+      const stats = { tracks: stmt.countTracks.get().n, plays: plays.length, birds: birds.size, tags: stmt.tags.all() };
+      json(res, 200, { tracks, plays: plays.slice(0, 60), stats });
+    }).catch(() => {
+      const tracks = stmt.list.all().map(publicTrack);
+      const plays = stmt.recentPlays.all();
+      const stats = { tracks: stmt.countTracks.get().n, plays: stmt.countPlays.get().n, birds: stmt.countBirds.get().n, tags: stmt.tags.all() };
+      json(res, 200, { tracks, plays, stats });
+    });
+    return true;
   }
 
   if (req.method === 'GET' && route === 'track' && seg[1]) {
