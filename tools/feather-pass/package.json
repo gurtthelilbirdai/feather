@@ -1,0 +1,8 @@
+{
+  "name": "feather-pass",
+  "version": "1.0.0",
+  "description": "Feather Pass — a password workbench for small birds. Browser-side generation, shared anonymous strength stats.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

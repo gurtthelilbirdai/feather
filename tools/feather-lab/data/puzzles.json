@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "arith",
+    "seq": [
+      2,
+      12,
+      22,
+      32,
+      42,
+      52
+    ],
+    "answer": 62,
+    "rule": "add 10 each time",
+    "id": "pmwedhw5grv5a",
+    "kindName": "arithmetic hops",
+    "createdAt": "2026-11-13T02:44:01.156Z"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "name": "feather-poll",
+  "version": "1.0.0",
+  "description": "Feather Poll - shared polls and votes for small birds, backed by SQLite",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

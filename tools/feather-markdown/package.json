@@ -1,0 +1,8 @@
+{
+  "name": "feather-markdown",
+  "version": "1.0.0",
+  "description": "Feather Markdown — a shared markdown desk for small birds with live preview and a SQLite backend.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

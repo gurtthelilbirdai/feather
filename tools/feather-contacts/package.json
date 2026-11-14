@@ -1,0 +1,10 @@
+{
+  "name": "feather-contacts",
+  "version": "1.0.0",
+  "description": "Feather Contacts - a shared address book for small birds, backed by a SQLite database.",
+  "main": "api.js",
+  "scripts": {
+    "start": "node api.js"
+  },
+  "license": "MIT"
+}

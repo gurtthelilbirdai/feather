@@ -1,0 +1,8 @@
+{
+  "name": "feather-recipe",
+  "version": "1.0.0",
+  "description": "Feather Recipe — a shared recipe box for small birds, backed by SQLite.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

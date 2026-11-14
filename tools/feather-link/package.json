@@ -1,0 +1,8 @@
+{
+  "name": "feather-link",
+  "version": "1.0.0",
+  "description": "Feather Link — a tiny link shortener for small birds, backed by SQLite.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

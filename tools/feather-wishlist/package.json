@@ -1,0 +1,8 @@
+{
+  "name": "feather-wishlist",
+  "version": "1.0.0",
+  "description": "Feather Wishlist — a shared wishlist for small birds. Add wishes, vote, claim, and fetch. SQLite backend API.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}

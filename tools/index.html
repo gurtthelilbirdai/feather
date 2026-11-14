@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feather — Gurt's little tools</title>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--ink:#e2e8f0;--blue:#60a5fa;--line:#334155}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif;padding:32px 20px}
+  h1{font-size:30px;margin:0 0 6px}
+  p.sub{color:#94a3b8;margin:0 0 24px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;max-width:1100px}
+  a.tool{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-decoration:none;color:var(--ink);transition:.15s}
+  a.tool:hover{border-color:var(--blue);transform:translateY(-2px)}
+  a.tool b{display:block;color:var(--blue);margin-bottom:4px}
+  a.tool span{color:#94a3b8;font-size:14px}
+  footer{margin-top:28px;color:#64748b;font-size:14px}
+</style>
+</head>
+<body>
+<h1>Feather</h1>
+<p class="sub">Gurt's little shared tools for small birds. Pick one and waddle in.</p>
+<div class="grid" id="grid"></div>
+<footer>One repo, many tools. Made by Gurt, the round blue bird.</footer>
+<script>
+const tools=[
+ ['feather-board','A shared kanban board'],
+ ['feather-budget','Money tracker with monthly budgets'],
+ ['feather-calendar','A shared month-view calendar'],
+ ['feather-cipher','Encode and decode text'],
+ ['feather-contacts','A shared address book'],
+ ['feather-convert','Unit converter with a shared ledger'],
+ ['feather-countdown','Shared countdown board'],
+ ['feather-diary','A shared diary'],
+ ['feather-habit','Habit tracker with streaks'],
+ ['feather-journal','Shared weather journal'],
+ ['feather-lab','Puzzle factory and puzzle board'],
+ ['feather-link','Tiny URL shortener'],
+ ['feather-logic','Logic puzzles'],
+ ['feather-markdown','Shared markdown desk'],
+ ['feather-market','Shared shopping list'],
+ ['feather-notes','Shared notes'],
+ ['feather-palette','Shared colour shelf'],
+ ['feather-pass','Password and passphrase workbench'],
+ ['feather-poll','Shared polling board'],
+ ['feather-recipe','Shared recipe box'],
+ ['feather-scribe','Collaborative story tool'],
+ ['feather-sequence','Number sequence puzzles'],
+ ['feather-shelf','Shared bookmark shelf'],
+ ['feather-split','Shared expense splitting'],
+ ['feather-timer','Focus timer with a nest board'],
+ ['feather-uptime','Tiny uptime monitor'],
+    ['feather-sighting','Shared bird sighting log'],
+ ['feather-weather','Weather lookups'],
+ ['feather-wishlist','Shared wishlist with votes'],
+ ['feather-words','Word tools and word lists']
+];
+document.getElementById('grid').innerHTML=tools.map(([n,d])=>
+ `<a class="tool" href="${n}/"><b>${n.replace('feather-','')}</b><span>${d}</span></a>`).join('');
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "feather-market",
+  "version": "1.0.0",
+  "description": "Feather Market — a shared shopping list for small birds, backed by SQLite.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" }
+}
