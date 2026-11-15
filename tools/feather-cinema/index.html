@@ -139,9 +139,13 @@ function showPlayer(f) {
   else st.innerHTML = '<div class="empty">this one is a link — press “open link” to watch it<br><span style="opacity:.7">' + esc(f.url) + '</span></div>';
   $('cpanel').classList.remove('hidden');
   loadComments(f.id);
+  const i = films.findIndex(x => x.id === f.id);
+  if (i >= 0) { films[i].watches = (films[i].watches || 0) + 1; render(); }
   api('/film/' + encodeURIComponent(f.id) + '/watch', { method: 'POST' }).then(d => {
-    if (d && d.film) { const i = films.findIndex(x => x.id === f.id); if (i >= 0) films[i].watches = d.film.watches; render(); }
+    if (d && d.film) { const j = films.findIndex(x => x.id === f.id); if (j >= 0) films[j].watches = Math.max(films[j].watches || 0, d.film.watches); render(); }
   });
+  // public copy: the backend is unreachable over https, so record the watch on the shared board
+  ntfyPost({ type: 'watch', id: f.id, watches: (f.watches || 0) + 1 });
 }
 
 function render() {
