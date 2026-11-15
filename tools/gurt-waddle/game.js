@@ -26,6 +26,8 @@
   let dailyMode = false, dailyLevel = 1, dailyLimit = 90, dailyPosted = false;
   let customMode = false, customRows = null, customTitle = '', levelRows = null;
   let storyMode = false, storyChapter = 0, storyLevel = 1;
+  // ghost race: the fastest bird's run through this level, replayed beside you
+  let ghost = null, ghostSamples = [], ghostTick = 0, ghostOn = true, ghostMsg = '';
 
   function beep(freq, dur, type) {
     if (muted) return;
@@ -62,6 +64,8 @@
       if (ch === 'V') platforms.push({ kind: 'v', x: xx * T, y: (yy + 1) * T, w: T * 2, h: 12, y0: (yy + 1) * T, y1: (yy - 5) * T, dx: 0, dy: -0.9, wait: 120 });
     }
     p = { x: sx * T + 4, y: sy * T + 4, w: 24, h: 24, vx: 0, vy: 0, onGround: false, face: 1, ride: null };
+    ghostSamples = []; ghostTick = 0;
+    loadGhost(level + 1);
     state = 'play';
     $('lvl').textContent = customMode ? customTitle : ((level + 1) + '/' + LEVELS.length);
   }
@@ -177,6 +181,12 @@
     if (state !== 'play') return;
     elapsed += dt;
     if (safeFor > 0) safeFor -= dt;
+    // record the waddle for the ghost race (10 samples a second)
+    ghostTick += dt;
+    if (ghostTick >= 0.1) {
+      ghostTick -= 0.1;
+      if (ghostSamples.length < 6000) ghostSamples.push([Math.round(p.x), Math.round(p.y), p.face]);
+    }
     if (dailyMode) {
       const left = Math.max(0, dailyLimit - elapsed);
       $('time').textContent = Math.floor(left);
@@ -497,7 +507,7 @@
   function win() {
     if (dailyMode) { score += lives * 100 + 500; dailyEnd(); return; }
     if (storyMode) { score += lives * 100 + 500; $('score').textContent = score; storyNextLevel(); return; }
-    state = 'win'; score += lives * 100 + 500; saveRun();
+    state = 'win'; score += lives * 100 + 500; saveRun(); saveGhost();
     if (level >= 99) { award('root-moth'); award('hundred'); }
     else if (level >= 79) award('star-moth');
     else if (level >= 59) award('lantern-moth');
@@ -692,6 +702,21 @@
     x.fillStyle = '#111'; x.beginPath(); x.arc(p.x + 13 + p.face * 4, p.y + 10, 2, 0, 7); x.fill();
     x.fillStyle = '#ffb347'; x.beginPath(); x.moveTo(p.x + 12 + p.face * 7, p.y + 14); x.lineTo(p.x + 12 + p.face * 15, p.y + 16); x.lineTo(p.x + 12 + p.face * 7, p.y + 18); x.fill();
     x.fillStyle = '#2f7fd1'; x.beginPath(); x.ellipse(p.x + 12, p.y + 21, 8, 5, 0, 0, 7); x.fill();
+    // ghost bird: the fastest run through this level, replayed beside you
+    if (ghostOn && ghost && ghost.samples && ghost.samples.length) {
+      const gi = Math.min(ghost.samples.length - 1, Math.floor(elapsed * 10));
+      const gs = ghost.samples[gi];
+      if (gs) {
+        // the ghost floats a little above the ground so it never hides behind the player
+        const gx = gs[0], gy = gs[1] - 22, gf = gs[2] || 1;
+        x.globalAlpha = 0.55;
+        x.fillStyle = '#c9a6ff'; x.beginPath(); x.arc(gx + 12, gy + 12, 12, 0, 7); x.fill();
+        x.fillStyle = '#efe4ff'; x.beginPath(); x.arc(gx + 12 + gf * 4, gy + 10, 4, 0, 7); x.fill();
+        x.fillStyle = '#2a1a44'; x.beginPath(); x.arc(gx + 13 + gf * 4, gy + 10, 2, 0, 7); x.fill();
+        x.fillStyle = '#ffb347'; x.beginPath(); x.moveTo(gx + 12 + gf * 7, gy + 14); x.lineTo(gx + 12 + gf * 15, gy + 16); x.lineTo(gx + 12 + gf * 7, gy + 18); x.fill();
+        x.globalAlpha = 1;
+      }
+    }
     if (state === 'over') drawOverlay('the waddle ends', 'score ' + score + ' \u00b7 press play to try again');
     if (state === 'win') drawOverlay(level >= 99 ? 'you beat the root moth!' : (level >= 79 ? 'you beat the starfall moth!' : (level >= 59 ? 'you beat the lantern moth!' : 'you beat the moon moth!')), 'score ' + score + ' \u00b7 the flock will hear about this');
     if (overlay) drawOverlay(overlay.title, overlay.sub);
@@ -938,6 +963,49 @@
     }
     return false;
   }
+  async function ntfyGetGhost(level) {
+    for (const url of [NTFY, NTFY_ALT]) {
+      try {
+        const r = await fetch(url + '/json?poll=1&since=all', { cache: 'no-store' });
+        if (!r.ok) continue;
+        const lines = (await r.text()).split('\n').filter(Boolean).map(x => { try { return JSON.parse(x); } catch (e) { return null; } }).filter(Boolean);
+        let best = null;
+        for (const m of lines) {
+          let d = m.message;
+          if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { continue; } }
+          if (!d || d.type !== 'ghost' || Number(d.level) !== Number(level)) continue;
+          if (!d.samples || !d.samples.length) continue;
+          if (!best || Number(d.seconds) < Number(best.seconds)) best = d;
+        }
+        if (best) return best;
+      } catch (e) {}
+    }
+    return null;
+  }
+  async function loadGhost(level) {
+    ghost = null; ghostMsg = '';
+    const d = await api('/ghost?level=' + level);
+    if (d && d.ghost) { ghost = d.ghost; }
+    else {
+      const g = await ntfyGetGhost(level);
+      if (g) ghost = { level: g.level, bird: g.bird, samples: g.samples, seconds: g.seconds };
+    }
+    window.__gurtGhost = ghost;
+    if (ghost && ghost.samples && ghost.samples.length) {
+      ghostMsg = 'racing ' + (ghost.bird || 'a bird') + ' — ' + (Math.round(Number(ghost.seconds) * 10) / 10) + 's';
+      $('msg').textContent = ghostMsg;
+      if ($('ghostinfo')) $('ghostinfo').textContent = ghostMsg + " · the pale bird is the flock's fastest run";
+    }
+  }
+  async function saveGhost() {
+    if (!ghostSamples.length) return;
+    const bird = ($('name').value || 'gurt').trim().slice(0, 18) || 'gurt';
+    const payload = { bird, level: level + 1, seconds: Math.max(0.1, elapsed), samples: ghostSamples.slice(0, 4000), at: new Date().toISOString() };
+    try {
+      await api('/ghost', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    } catch (e) {}
+    await ntfyPostProgress({ type: 'ghost', ...payload });
+  }
   async function ntfyGetCustom(id) {
     for (const url of [NTFY, NTFY_ALT]) {
       try {
@@ -1048,6 +1116,11 @@
     reset();
   };
   if ($('storybtn')) $('storybtn').onclick = () => startStory();
+  if ($('ghostbtn')) $('ghostbtn').onclick = () => {
+    ghostOn = !ghostOn;
+    $('ghostbtn').textContent = 'ghost: ' + (ghostOn ? 'on' : 'off');
+    $('ghostinfo').textContent = ghostOn ? (ghostMsg || 'no ghost run for this level yet — finish it to leave one') : 'ghost hidden';
+  };
   window.__gurtStory = { start: startStory, win: () => { if (storyMode) win(); }, jump: n => { if (storyMode) { storyChapter = storyChapterFor(n); storyLevel = n; loadLevel(n-1); showStoryText(n); } } };
   if ($('daily')) $('daily').onclick = () => startDaily();
   $('go').onclick = () => { const v = parseInt($('levels').value, 10); if (!isNaN(v)) goToLevel(v); };
