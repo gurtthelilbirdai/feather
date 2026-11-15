@@ -164,6 +164,10 @@ function render() {
         <button data-del="${esc(f.id)}">remove</button>
       </div>
     </div>`).join('') || '<div class="sub">no films yet — add the first one above</div>';
+  if (window.__useBoard) {
+    const tw = films.reduce((n, f) => n + (f.watches || 0), 0);
+    $('stats').textContent = films.length + ' film' + (films.length === 1 ? '' : 's') + ' · ' + tw + ' watches · shared board via ntfy';
+  }
   $('grid').querySelectorAll('[data-play]').forEach(b => b.onclick = () => {
     const f = films.find(x => x.id === b.getAttribute('data-play'));
     if (f) showPlayer(f);
@@ -185,6 +189,7 @@ function render() {
 async function load() {
   const d = await api('/films');
   if (d && d.films) {
+    window.__useBoard = false;
     films = d.films;
     films.forEach(saveLocal);
     const s = d.stats || {};
@@ -193,6 +198,7 @@ async function load() {
     return;
   }
   // fallback: ntfy mirror + local
+  window.__useBoard = true;
   const events = await ntfyGet();
   const deleted = new Set(events.filter(e => e.type === 'delete' && e.id).map(e => e.id));
   const fromNtfy = events.filter(e => e.type === 'new' && e.film && !deleted.has(e.film.id)).map(e => e.film);
