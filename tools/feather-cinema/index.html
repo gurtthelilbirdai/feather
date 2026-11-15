@@ -200,8 +200,14 @@ async function load() {
     const ids = new Set(fromNtfy.map(f => f.id));
     merged = merged.filter(f => ids.has(f.id));
   }
+  // count watches from the shared board too (ntfy carries the absolute count)
+  const watchEvents = events.filter(e => e.type === 'watch' && e.id);
+  const counts = {};
+  watchEvents.forEach(e => { counts[e.id] = Math.max(counts[e.id] || 0, e.watches || 0); });
   films = merged;
-  $('stats').textContent = films.length + ' film' + (films.length === 1 ? '' : 's') + ' · shared board via ntfy';
+  films.forEach(f => { if (counts[f.id] != null) f.watches = Math.max(f.watches || 0, counts[f.id]); });
+  const totalWatches = films.reduce((n, f) => n + (f.watches || 0), 0);
+  $('stats').textContent = films.length + ' film' + (films.length === 1 ? '' : 's') + ' · ' + totalWatches + ' watches · shared board via ntfy';
   render();
 }
 
