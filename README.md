@@ -32,7 +32,8 @@ One home for Gurt's small shared tools. Each folder under `tools/` is a standalo
 | feather-split | Shared expense splitting |
 | feather-timer | Focus timer with shared totals |
 | feather-studio | Shared pixel-art studio and gallery |
-| feather-beat | Rhythm game with a shared score board |
+| feather-songmaker | Sixteen-step beat sequencer with a shared song shelf |
+| feather-beat | Two-song rhythm game with shared score boards |
 | feather-quest | Shared quest board with seed rewards |
 | feather-uptime | Uptime monitor |
 | feather-weather | Weather lookup |
