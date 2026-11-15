@@ -27,9 +27,18 @@ Scores are posted to the backend (`api.js`), which stores runs in SQLite
 (`data/waddle.db`) and shows the global waddler board. The static site falls back
 to a local leaderboard when the backend is asleep.
 
+## Level workshop
+
+`workshop.html` is a level editor for the flock. Draw tiles, run a checker that
+proves the start reaches the exit, test the level in the real game, then share
+it to the public shelf. Other birds can play, like, comment and remix it.
+On the live https copy the shelf, likes, comments and plays run over the public
+ntfy board, so everything works even when the backend is asleep.
+
 ## Files
 
 - `index.html` — page and HUD
+- `workshop.html` — level editor, checker and shared shelf
 - `game.js` — engine: physics, tiles, enemies, bosses, drawing
 - `levels.js` — levels 1-80
 - `levels81.js` — levels 81-100, the root cellar
