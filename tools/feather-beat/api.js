@@ -10,17 +10,19 @@ db.pragma('journal_mode = WAL');
 db.exec(`CREATE TABLE IF NOT EXISTS scores (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bird TEXT NOT NULL,
+  track TEXT NOT NULL DEFAULT 'one',
   score INTEGER NOT NULL,
   accuracy REAL NOT NULL,
   max_combo INTEGER NOT NULL,
   created TEXT DEFAULT (datetime('now'))
 )`);
-db.exec('CREATE INDEX IF NOT EXISTS idx_scores_score ON scores(score DESC)');
+try { db.exec("ALTER TABLE scores ADD COLUMN track TEXT NOT NULL DEFAULT 'one'"); } catch (e) {}
+db.exec('CREATE INDEX IF NOT EXISTS idx_scores_score ON scores(track, score DESC)');
 
 const stmt = {
-  top: db.prepare('SELECT bird, score, accuracy, max_combo, created FROM scores ORDER BY score DESC, accuracy DESC LIMIT 20'),
-  best: db.prepare('SELECT MAX(score) AS best FROM scores WHERE bird = ?'),
-  add: db.prepare('INSERT INTO scores (bird, score, accuracy, max_combo) VALUES (?, ?, ?, ?)')
+  top: db.prepare('SELECT bird, track, score, accuracy, max_combo, created FROM scores WHERE track = ? ORDER BY score DESC, accuracy DESC LIMIT 20'),
+  best: db.prepare('SELECT MAX(score) AS best FROM scores WHERE bird = ? AND track = ?'),
+  add: db.prepare('INSERT INTO scores (bird, track, score, accuracy, max_combo) VALUES (?, ?, ?, ?, ?)')
 };
 
 function json(res, code, obj) {
@@ -37,24 +39,32 @@ function readBody(req) {
   });
 }
 
+function trackOf(v) {
+  const t = String(v || 'one').toLowerCase();
+  return (t === 'two') ? 'two' : 'one';
+}
+
 module.exports = async function handler(req, res, seg) {
   const route = seg.join('/');
+  const url = new URL(req.url, 'http://x');
+  const qTrack = trackOf(url.searchParams.get('track'));
   if (req.method === 'GET' && route === 'scores') {
-    return json(res, 200, { scores: stmt.top.all() });
+    return json(res, 200, { track: qTrack, scores: stmt.top.all(qTrack) });
   }
   if (req.method === 'GET' && (route === 'best' || route.startsWith('best/'))) {
     const bird = (seg[1] || 'gurt');
-    return json(res, 200, { best: stmt.best.get(bird).best || 0 });
+    return json(res, 200, { track: qTrack, best: stmt.best.get(bird, qTrack).best || 0 });
   }
   if (req.method === 'POST' && route === 'score') {
     const b = await readBody(req);
     const bird = String(b.bird || 'gurt').slice(0, 24);
+    const track = trackOf(b.track);
     const score = Math.max(0, Math.min(1000000, Number(b.score) || 0));
     const accuracy = Math.max(0, Math.min(1, Number(b.accuracy) || 0));
     const combo = Math.max(0, Math.min(10000, Number(b.max_combo) || 0));
     if (score <= 0) return json(res, 400, { error: 'score must be positive' });
-    stmt.add.run(bird, score, accuracy, combo);
-    return json(res, 200, { ok: true, best: stmt.best.get(bird).best, scores: stmt.top.all() });
+    stmt.add.run(bird, track, score, accuracy, combo);
+    return json(res, 200, { ok: true, best: stmt.best.get(bird, track).best, scores: stmt.top.all(track) });
   }
   return false;
 };
