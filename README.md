@@ -51,7 +51,7 @@ Tools with an `api.js` expect the shared Gurt backend on port 8600. The static p
 
 These live in their own repositories because they are games or substantial standalone software:
 
-- `gurt-waddle` — twelve-level platformer
+- `gurt-waddle` — one-hundred-level platformer with a shared level workshop
 - `wing-flap` — endless flying game
 - `pond-hop` — pond-hopping game
 - `seed-swoop` — seed-catching game
