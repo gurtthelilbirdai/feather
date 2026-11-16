@@ -94,6 +94,7 @@
     state = 'play';
     if (!muted) playTheme(level + 1); else playTheme(0);
     $('lvl').textContent = customMode ? customTitle : ((level + 1) + '/' + LEVELS.length);
+    if (storyMode) showStoryText(storyLevel);
   }
 
   function loadCustomRows(rows, title) {
@@ -204,6 +205,10 @@
   function gameOver() {
     state = 'over';
     saveRun();
+    if (storyMode) {
+      overlay = { title: 'the story waits for you', sub: 'press play to try this chapter again' };
+      return;
+    }
     overlay = { title: 'the waddle ends', sub: 'score ' + score + ' · press play to try again' };
   }
   function drawOverlay(title, sub) {
@@ -304,10 +309,15 @@
     }
 
     // crumbling roots: they hold for a moment, then fall away and grow back
+    const feetX = Math.floor((p.x + p.w / 2) / T);
+    const feetY = Math.floor((p.y + p.h + 3) / T);
     for (const cr of crumbling) {
       if (cr.timer >= 0) {
+        // a root only gives way when nobody is standing on it
+        if (cr.x === feetX && cr.y === feetY) { cr.timer = 0; continue; }
         cr.timer += dt;
-        if (cr.timer > 0.55) { grid[cr.y][cr.x] = '.'; cr.timer = -1; cr.back = 2.5; }
+        // only give way when the bird has moved off the root
+        if (cr.timer > 0.55 && Math.abs(cr.x - feetX) > 1) { grid[cr.y][cr.x] = '.'; cr.timer = -1; cr.back = 2.5; }
       } else if (cr.back > 0) {
         cr.back -= dt;
         if (cr.back <= 0) grid[cr.y][cr.x] = 'c';
@@ -350,6 +360,12 @@
     if (touchingExit) {
       if (bosses.some(b => !b.dead)) { $('msg').textContent = 'the moths guard the exit — stomp them first'; beep(160, .12, 'sawtooth'); return; }
       if (customMode) { winCustom(); return; }
+      if (storyMode) {
+        // the story advances by its own script, not the normal level counter
+        score += 100; $('score').textContent = score;
+        storyNextLevel();
+        return;
+      }
       if (level === LEVELS.length - 1) { win(); return; }
       score += 100; level++;
       award('first-step');
@@ -525,6 +541,10 @@
     box.style.display = 'block';
     line.textContent = e.line;
     goal.textContent = 'goal: ' + e.goal;
+    const ci = storyChapterFor(n);
+    const c = STORY[ci];
+    const chap = $('storychap');
+    if (chap) chap.textContent = c ? ('chapter ' + (ci + 1) + ' of ' + STORY.length + ' \u00b7 ' + c.title + ' \u00b7 level ' + n + ' of 100') : ('level ' + n);
   }
   function hideStoryText() { const b = $('story'); if (b) b.style.display = 'none'; }
   function startStory() {
@@ -545,6 +565,7 @@
     if (!c) return;
     storyChapter = ci;
     storyLevel = c.levels[0].n;
+    lives = 5; $('lives').textContent = lives;   // a new chapter, a new set of lives
     loadLevel(storyLevel - 1);
     overlay = { title: c.title, sub: c.intro + '  ·  press play to begin' };
     state = 'story';
@@ -573,6 +594,7 @@
       return;
     }
     overlay = null;
+    state = 'play';
     loadLevel(storyLevel - 1);
     showStoryText(storyLevel);
     beep(1200, .15, 'triangle');
@@ -1083,7 +1105,7 @@
     window.__gurtGhost = ghost;
     if (ghost && ghost.samples && ghost.samples.length) {
       ghostMsg = 'racing ' + (ghost.bird || 'a bird') + ' — ' + (Math.round(Number(ghost.seconds) * 10) / 10) + 's';
-      $('msg').textContent = ghostMsg;
+      if (!storyMode) $('msg').textContent = ghostMsg;
       if ($('ghostinfo')) $('ghostinfo').textContent = ghostMsg + " · the pale bird is the flock's fastest run";
     }
   }
@@ -1202,7 +1224,28 @@
       else { overlay = null; state = 'play'; loadLevel(storyLevel - 1); showStoryText(storyLevel); }
       return;
     }
-    if (storyMode) { storyMode = false; hideStoryText(); reset(); return; }
+    if (storyMode) {
+      if (state === 'over') {
+        // died in the story: give the chapter fresh lives and try that level again
+        lives = 5; $('lives').textContent = lives;
+        overlay = null; state = 'play';
+        loadLevel(storyLevel - 1);
+        showStoryText(storyLevel);
+        $('msg').textContent = 'story mode — chapter ' + (storyChapter + 1) + ' of ' + STORY.length;
+        return;
+      }
+      if (state === 'play') {
+        // play is already running: in story mode this button means
+        // "restart this story level", never "leave the story"
+        lives = 5; $('lives').textContent = lives;
+        overlay = null; state = 'play';
+        loadLevel(storyLevel - 1);
+        showStoryText(storyLevel);
+        $('msg').textContent = 'story mode — chapter ' + (storyChapter + 1) + ' of ' + STORY.length;
+        return;
+      }
+      storyMode = false; hideStoryText(); reset(); return;
+    }
     reset();
   };
   if ($('storybtn')) $('storybtn').onclick = () => startStory();
@@ -1211,7 +1254,7 @@
     $('ghostbtn').textContent = 'ghost: ' + (ghostOn ? 'on' : 'off');
     $('ghostinfo').textContent = ghostOn ? (ghostMsg || 'no ghost run for this level yet — finish it to leave one') : 'ghost hidden';
   };
-  window.__gurtStory = { start: startStory, win: () => { if (storyMode) win(); }, jump: n => { if (storyMode) { storyChapter = storyChapterFor(n); storyLevel = n; loadLevel(n-1); showStoryText(n); } } };
+  window.__gurtStory = { start: startStory, win: () => { if (storyMode) win(); }, jump: n => { if (storyMode) { storyChapter = storyChapterFor(n); storyLevel = n; overlay = null; state = 'play'; loadLevel(n-1); showStoryText(n); } }, level: () => storyLevel, chapter: () => storyChapter, state: () => state };
   if ($('daily')) $('daily').onclick = () => startDaily();
   $('go').onclick = () => { const v = parseInt($('levels').value, 10); if (!isNaN(v)) goToLevel(v); };
   $('next').onclick = () => { goToLevel((level || 0) + 1); };
