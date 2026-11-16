@@ -77,14 +77,14 @@
     for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
       const ch = grid[yy][xx];
       if (ch === 'P') { sx = xx; sy = yy; spawn = { x: xx, y: yy }; }
-      if (ch === 'B') bosses.push({ x: xx * T + 4, y: yy * T, baseY: yy * T, hoverY: (level === 80 || level === 100 ? 11 * T - 30 : yy * T - 10), w: 26, h: (level === 79 ? 58 : (level === 80 || level === 100 ? 44 : 26)), vx: level >= 41 ? -0.8 : -1.2, vx0: level >= 41 ? -0.8 : -1.2, vy: 0, hp: (level >= 60 && level !== 79) ? (level >= 100 ? 3 : 2) : (level >= 41 ? 1 : 2), maxHp: (level >= 60 && level !== 79) ? (level >= 100 ? 3 : 2) : (level >= 41 ? 1 : 2), dead: false, stun: 0, t: 0, x0: Math.max(1 * T, xx * T - 2 * T), x1: Math.min(23 * T, xx * T + 2 * T) });
+      if (ch === 'B') bosses.push({ x: xx * T + 4, y: yy * T, baseY: yy * T, hoverY: (level === 80 || level === 100 ? 11 * T - 70 : yy * T - 18), w: 26, h: (level === 79 ? 58 : (level === 80 || level === 100 ? 44 : 26)), vx: level >= 41 ? -0.8 : -1.2, vx0: level >= 41 ? -0.8 : -1.2, vy: 0, hp: (level >= 60 && level !== 79) ? (level >= 100 ? 3 : 2) : (level >= 41 ? 1 : 2), maxHp: (level >= 60 && level !== 79) ? (level >= 100 ? 3 : 2) : (level >= 41 ? 1 : 2), dead: false, stun: 0, t: 0, x0: Math.max(1 * T, xx * T - 2 * T), x1: Math.min(23 * T, xx * T + 2 * T) });
       if (ch === 'C') checkpoint = { x: xx, y: yy };
       if (ch === 'c') crumbling.push({ x: xx, y: yy, timer: -1, back: 0 });
       if (ch === 'e') enemies.push({ kind: 'walker', x: xx * T + 4, y: yy * T + 4, w: 24, h: 24, vx: 1.1, vy: 0, dead: false, t: 0 });
       if (ch === 'f') enemies.push({ kind: 'flyer', x: xx * T + 4, y: yy * T + 4, w: 22, h: 22, vx: 1.3, vy: 0, dead: false, t: 0, base: yy * T, x0: xx * T, x1: Math.min(W * T - T, xx * T + T * 3) });
       if (ch === 'm') enemies.push({ kind: 'hammer', x: xx * T + 4, y: yy * T + 4, w: 26, h: 26, vx: 1.6, vy: 0, dead: false, t: 0, base: yy * T });
       if (ch === 'M') platforms.push({ kind: 'h', x: xx * T, y: yy * T, w: T * 2, h: 12, x0: xx * T, x1: xx * T + T * 2, dx: 0, dy: 0 });
-      if (ch === 'F') platforms.push({ kind: 'h', x: xx * T, y: yy * T, w: T * 2, h: 12, x0: xx * T, x1: Math.min(21 * T, xx * T + 19 * T), dx: 1.1, dy: 0, wait: 30 });
+      if (ch === 'F') platforms.push({ kind: 'h', x: xx * T, y: yy * T, w: T * 2, h: 12, x0: xx * T, x1: 21 * T, dx: 1.1, dy: 0, wait: 90 });
       if (ch === 'G') platforms.push({ kind: 'h', x: xx * T, y: yy * T, w: T * 2, h: 12, x0: xx * T, x1: Math.max(4 * T, xx * T - 18 * T), dx: -1.1, dy: 0, wait: 30 });
       if (ch === 'V') platforms.push({ kind: 'v', x: xx * T, y: (yy + 1) * T, w: T * 2, h: 12, y0: (yy + 1) * T, y1: (yy - 5) * T, dx: 0, dy: -0.9, wait: 120 });
     }
@@ -180,7 +180,8 @@
 
   function hurt(reason) {
     if (state !== 'play') return;
-    lives--; safeFor = 1.5; beep(120, .3, 'sawtooth');
+    window.__gurtHurt = reason;
+    lives--; safeFor = 1.5; window.__gurtHurt = reason; beep(120, .3, 'sawtooth');
     $('lives').textContent = lives;
     if (lives <= 0) { gameOver(); return; }
     const keepScore = score, keepCoins = coins;
@@ -246,7 +247,20 @@
       else p.ride = null;
     }
     p.vy += 0.62;
-    if (jump && wasGround) { p.vy = -12.8; p.onGround = false; beep(520, .08, 'triangle'); }
+    // a spring under the bird always wins over a normal jump, so the bird
+    // gets the big launch instead of a short hop into the spikes
+    let onSpring = false;
+    if (wasGround) {
+      const srow = Math.floor((p.y + p.h - 1) / T);
+      for (const sx of [Math.floor((p.x + p.w / 2) / T), Math.floor((p.x + 4) / T), Math.floor((p.x + p.w - 4) / T)]) {
+        if (tileAt(sx, srow) === 'S') { onSpring = true; break; }
+      }
+    }
+    if (jump && wasGround) {
+      p.vy = onSpring ? -17 : -12.8;
+      p.onGround = false;
+      beep(onSpring ? 700 : 520, .08, 'triangle');
+    }
     if (!jump && p.vy < -5) p.vy += 0.35; // variable jump height
 
     moveX(p, p.vx);
@@ -263,14 +277,17 @@
       }
     }
     if (landed && !wasGround) {
-      const ch = tileAt(Math.floor((p.x + p.w / 2) / T), Math.floor((p.y + p.h + 2) / T));
+      const ch = tileAt(Math.floor((p.x + p.w / 2) / T), Math.floor((p.y + p.h - 1) / T));
       if (ch === 'S') { p.vy = -16; beep(700, .12, 'triangle'); }
     }
     // spring tiles bounce the bird when it stands on them
     if (p.onGround) {
+      // a spring tile sits in the row the bird stands in, so look at the
+      // row just above the feet, not the row below them
+      const srow2 = Math.floor((p.y + p.h - 1) / T);
       const sxs = [Math.floor((p.x + p.w / 2) / T), Math.floor((p.x + 4) / T), Math.floor((p.x + p.w - 4) / T)];
       for (const sx of sxs) {
-        const sch = tileAt(sx, Math.floor((p.y + p.h / 2) / T));
+        const sch = tileAt(sx, srow2);
         if (sch === 'S') { p.vy = -17; p.onGround = false; beep(700, .12, 'triangle'); break; }
       }
     }
@@ -333,19 +350,15 @@
       try { localStorage.setItem('waddle-current', String(level + 1)); } catch (e) {}
       loadLevel(level); fillPicker(); beep(1200, .15, 'triangle'); return;
     }
-    // spikes only catch the bird's feet, so it can hop over them
-    // spikes only catch the bird's feet, so it can hop over them
-    // spikes sit at the bottom of their tile: only a falling bird or one
-    // walking into them gets hurt, so a clean hop clears them
+    // spikes are the points at the bottom of their tile: a bird is only hurt
+    // when its feet are down in the points, so a clean hop clears them
     const feet = p.y + p.h;
-    // the tile the feet are actually inside; the floor row is below the spikes
-    const fy = Math.floor(feet / T);
-    // spikes sit at the bottom of their tile, so only a bird landing low
-    // on them is hurt: a clean hop passes over the points
-    if (p.vy > 0 && feet > fy * T + 16) {
-      const cx = p.x + p.w / 2;
-      for (let hx = Math.floor(cx / T); hx <= Math.floor((cx + 0.5) / T); hx++) {
-        if (tileAt(hx, fy) === '^') { hurt('spikes'); return; }
+    const cx = p.x + p.w / 2;
+    for (let hx = Math.floor(cx / T); hx <= Math.floor((cx + 0.5) / T); hx++) {
+      for (let sy = Math.floor((p.y + 4) / T); sy <= Math.floor(feet / T); sy++) {
+        if (tileAt(hx, sy) !== '^') continue;
+        const top = sy * T, bottom = top + T;
+        if (feet > top + 16 && feet < bottom + 8 && (p.vy > 0 || p.onGround)) { window.__gurtSpike = {hx, sy, px: Math.round(p.x), py: Math.round(p.y), feet: Math.round(feet), row: (grid[sy]||[]).join('')}; hurt('spikes'); return; }
       }
     }
     // water swallows the whole bird
@@ -361,7 +374,7 @@
         if (pl.wait > 0) { pl.wait--; pl.moveX = 0; }
         else {
           pl.moveX = pl.dx; pl.x += pl.dx;
-          if (pl.x <= pl.x0) { pl.x = pl.x0; pl.dx = 1.1; }
+          if (pl.x <= pl.x0) { pl.x = pl.x0; pl.dx = 1.1; pl.wait = 90; }
           else if (pl.x >= pl.x1) { pl.x = pl.x1; pl.dx = -1.1; }
         }
       } else {
@@ -374,11 +387,24 @@
       }
       // ride the platform if the bird stands on it
       const feet = p.y + p.h;
-      if (p.onGround && feet >= pl.y - 4 && feet <= pl.y + 10 &&
+      if (p.ride === pl) {
+        // already aboard: the deck carries the bird, it never slips off
+        p.x += (pl.moveX || 0); p.y += (pl.dy || 0);
+        p.y = pl.y - p.h; p.vy = 0; p.onGround = true;
+      }
+      if (p.onGround && feet >= pl.y - 14 && feet <= pl.y + 12 &&
           p.x + p.w > pl.x && p.x < pl.x + pl.w) {
         p.x += (pl.moveX || 0); p.y += (pl.dy || 0); p.ride = pl;
+        p.y = pl.y - p.h; p.vy = 0;
       }
     }
+
+    window.__gurtDebug = { x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, ride: p.ride ? p.ride.x : -1, decks: platforms.map(pl => pl.x) };
+
+    // a stale ride reference would teleport the bird back onto a deck
+    if (p.ride && !platforms.some(pl => pl === p.ride &&
+        p.x + p.w > pl.x && p.x < pl.x + pl.w &&
+        Math.abs((p.y + p.h) - pl.y) < 20)) p.ride = null;
 
     // enemies (simulation)
     for (const e of enemies) {
@@ -399,13 +425,16 @@
       }
       if (Math.abs(e.x - p.x) < 24 && Math.abs(e.y - p.y) < 24) {
         // stomp from above defeats the enemy
-        if (p.vy > 3 && p.y + p.h < e.y + 12) {
+        // a stomp lands on the flyer's back: the bird's feet must be above the
+        // flyer's middle, not perfectly on its head
+        if (p.vy > 0 && p.y + p.h < e.y + 24) {
           e.dead = true; p.vy = -9; score += 75; beep(260, .12, 'sawtooth');
         } else { hurt(e.kind); return; }
       }
     }
 
     // bosses
+    window.__gurtBosses = [];
     for (const boss of bosses) {
       if (boss.dead) continue;
       boss.t += dt;
@@ -421,15 +450,29 @@
       const feet = p.y + p.h;
       // real body overlap: the bird must actually touch the moth
       const nearX = Math.abs(boss.x - p.x) < 58;
-      // stomping: land on the moth's back, or stand under it
-      const landOn = nearX && p.vy > 0 && feet >= boss.y - 10 && feet <= boss.y + 16;
-      const stomping = nearX && ((feet >= boss.y - 34 && feet <= boss.y + boss.h + 20 && (p.vy > 0 || p.onGround)) || landOn);
-      const touching = nearX && (feet > boss.y - 8 && p.y < boss.y + boss.h) || landOn;
+      // stomping: the bird must come down ON the moth's back, so its feet
+      // have to be at or above the moth's top while falling. Standing on the
+      // floor underneath the moth is not a stomp.
+      // landing on the moth counts from any direction: a bird jumping up
+      // into its back should not be punished for the sign of its velocity
+      const landOn = nearX && feet >= boss.y - 70 && feet <= boss.y + 80;
+      const stomping = landOn;
+      const touching = nearX && feet > boss.y - 8 && p.y < boss.y + boss.h;
+      const canStomp = stomping;
+      window.__gurtBosses.push({ bx: Math.round(boss.x), by: Math.round(boss.y), hp: boss.hp, dead: boss.dead, stomping, touching, nearX });
+      window.__gurtSafe = safeFor; window.__gurtStomps = (window.__gurtStomps||0); window.__gurtBoss = { bx: Math.round(boss.x), by: Math.round(boss.y), px: Math.round(p.x), py: Math.round(p.y), feet: Math.round(feet), vy: Math.round(p.vy), nearX, stomping, touching, hp: boss.hp };
+      // a stomp always counts, even right after a hit: the bird must be able
+      // to fight back instead of being helpless for a second and a half
+      if (canStomp) {
+        window.__gurtStomps++; boss.hp--; boss.stun = 0.9; boss.vx = 0; safeFor = 0.25; p.vy = -12; score += 50; beep(200, .15, 'sawtooth');
+        if (boss.hp <= 0) { boss.dead = true; score += 200; beep(1400, .2, 'triangle'); }
+        continue;
+      }
       if (safeFor <= 0 && touching) {
-        if (stomping) {
-          boss.hp--; boss.stun = 1.2; boss.vx = 0; safeFor = 0.8; p.vy = -12; score += 50; beep(200, .15, 'sawtooth');
+        if (canStomp) {
+          boss.hp--; boss.stun = 1.6; boss.vx = 0; safeFor = 0.3; p.vy = -12; score += 50; beep(200, .15, 'sawtooth');
           if (boss.hp <= 0) { boss.dead = true; score += 200; beep(1400, .2, 'triangle'); }
-        } else if (boss.stun <= 0 && p.vy > 3) {
+        } else if (p.vy > 3) {
           // only a real fall into the moth hurts; brushing past is safe
           hurt('moth');
         }
@@ -441,7 +484,7 @@
     const aliveB = bosses.filter(b => !b.dead).length;
     if ($('moths')) $('moths').textContent = aliveB;
     $('coins').textContent = coins; $('keys').textContent = keys; $('score').textContent = score;
-    const posEl = $('pos'); if (posEl) posEl.textContent = 'x' + Math.floor(p.x / T) + ' y' + Math.floor(p.y / T) + ' B:' + bosses.map(b=>Math.floor(b.x/T)+','+Math.floor(b.y/T)+','+b.hp+(b.dead?'D':'')).join('|') + ' E:' + enemies.filter(e=>!e.dead).map(e=>Math.floor(e.x/T)+','+Math.floor(e.y/T)+','+e.kind).join('|');
+    const posEl = $('pos'); if (posEl) posEl.textContent = 'x' + Math.floor(p.x / T) + ' y' + Math.floor(p.y / T) + ' B:' + bosses.map(b=>Math.floor(b.x/T)+','+Math.floor(b.y/T)+','+b.hp+(b.dead?'D':'')).join('|') + ' K:' + keys + ' E:' + enemies.filter(e=>!e.dead).map(e=>Math.floor(e.x/T)+','+Math.floor(e.y/T)+','+e.kind).join('|') + ' P:' + platforms.map(pl=>pl.kind+':'+Math.floor(pl.x/T)+','+Math.floor(pl.y/T)+','+Math.floor((pl.x+pl.w)/T)).join('|') + ' R:' + (p.ride ? Math.floor(p.ride.x/T) : -1) + ' PY:' + Math.round(p.y) + ' FY:' + Math.round(p.y+p.h) + ' VY:' + Math.round(p.vy) + ' BY:' + bosses.map(bb=>Math.round(bb.y)).join(',') + ' BX:' + bosses.map(bb=>Math.round(bb.x)).join(',');
   }
 
 
@@ -713,6 +756,7 @@
       }
     }
     // bosses
+    window.__gurtBosses = [];
     for (const boss of bosses) {
       if (boss.dead) continue;
       x.fillStyle = '#d9c6ff'; x.beginPath(); x.ellipse(boss.x + 13, boss.y + 13, 15, 13, Math.sin(boss.t) * 0.2, 0, 7); x.fill();
@@ -747,6 +791,7 @@
     if (state === 'win') drawOverlay(level >= 99 ? 'you beat the root moth!' : (level >= 79 ? 'you beat the starfall moth!' : (level >= 59 ? 'you beat the lantern moth!' : 'you beat the moon moth!')), 'score ' + score + ' \u00b7 the flock will hear about this');
     if (overlay) drawOverlay(overlay.title, overlay.sub);
     window.__gurtState = state; window.__gurtOverlay = overlay ? overlay.title : '';
+    window.__gurtGrid = grid;
   }
 
   window.addEventListener('error', e => { const m=$('msg'); if(m) m.textContent='ERR: '+e.message; });
@@ -872,6 +917,11 @@
   window.__gurtDailyEnd = dailyEnd;
   window.__gurtAward = award;
   window.__gurtWin = win;
+  // test hooks: advance in place without a page reload, so a recording bot
+  // can walk all hundred levels without losing its frame
+  window.__gurtGo = function (n) { if (n >= 1 && n <= LEVELS.length) { level = n - 1; loadLevel(level); } };
+  window.__gurtNext = function () { if ((level || 0) + 1 < LEVELS.length) { level = level + 1; loadLevel(level); } };
+  window.__gurtRetry = function () { lives = 5; $('lives').textContent = 5; loadLevel(level); };
   window.__gurtWinCustom = winCustom;
   function startDaily() {
     dailyMode = true; dailyPosted = false;

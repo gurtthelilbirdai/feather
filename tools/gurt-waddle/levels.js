@@ -157,8 +157,8 @@
       const g = blank(); ground(g, [[4, 17]]);
       rect(g, 4, 13, 17, 1, 'w');
       put(g, 1, 11, 'P'); put(g, 23, 11, 'E');
-      put(g, 2, 12, 'F'); put(g, 22, 12, 'G');
-      // F and G sweep far enough to overlap, so the jetty always has a bridge
+      // one ferry deck sweeps the channel between the two jetties
+      put(g, 2, 12, 'F');
       put(g, 12, 11, 'C');
       coins(g, [[7, 11], [17, 11]]);
       return g;
@@ -168,11 +168,11 @@
       const g = blank(); ground(g, [[10, 5]]);
       rect(g, 10, 13, 5, 1, 'w');
       put(g, 1, 11, 'P'); put(g, 23, 11, 'E');
-      put(g, 11, 10, 'V');
-      col(g, 12, 4, '=', 1);
-      row(g, 6, 12, '=', 4); row(g, 9, 18, '=', 4);
+      // a plank bridge spans the flooded shaft, and a lift ferries up beside it
+      row(g, 12, 9, '=', 6);
+      put(g, 15, 10, 'V');
       put(g, 12, 11, 'C');
-      coins(g, [[4, 11], [14, 5], [20, 8]]);
+      coins(g, [[4, 11], [12, 11], [20, 11]]);
       return g;
     },
     // 17 — hammerhead
@@ -470,8 +470,8 @@
       const g = blank(); ground(g, [[4, 17]]);
       rect(g, 4, 13, 17, 1, 'w');
       put(g, 1, 11, 'P'); put(g, 23, 11, 'E');
-      put(g, 2, 12, 'F'); put(g, 22, 12, 'G');
-      // F and G sweep far enough to overlap, so the jetty always has a bridge
+      // one ferry deck sweeps the channel between the two jetties
+      put(g, 2, 12, 'F');
       put(g, 12, 11, 'C');
       coins(g, [[7, 11], [17, 11]]);
       return g;
