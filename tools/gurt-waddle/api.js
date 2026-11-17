@@ -261,7 +261,7 @@ module.exports = function handler(req, res, seg) {
       const date = String(body.date || '').slice(0, 10) || today();
       const bird = birdName(body.bird);
       const score = Math.max(0, Math.min(1000000, Math.floor(Number(body.score) || 0)));
-      const level = Math.max(1, Math.min(100, Math.floor(Number(body.level) || 1)));
+      const level = Math.max(1, Math.min(120, Math.floor(Number(body.level) || 1)));
       stmt.upsertDaily.run({ date, bird, score, level, at: now() });
       const best = stmt.dailyBest.get(date, bird);
       return json(res, 200, { ok: true, saved: true, best: best ? best.score : score, scores: stmt.dailyTop.all(date) });
@@ -310,7 +310,7 @@ module.exports = function handler(req, res, seg) {
 
   if (req.method === 'GET' && route === 'ghost') {
     const url = req.url.split('?')[1] || '';
-    const level = Math.max(1, Math.min(100, Math.floor(Number((url.split('level=')[1] || '').split('&')[0]) || 0)));
+    const level = Math.max(1, Math.min(120, Math.floor(Number((url.split('level=')[1] || '').split('&')[0]) || 0)));
     if (!level) return json(res, 200, { ghosts: stmt.ghostAll.all() });
     const row = stmt.ghostGet.get(level);
     if (!row) return json(res, 200, { ghost: null });
@@ -322,7 +322,7 @@ module.exports = function handler(req, res, seg) {
   if (req.method === 'POST' && route === 'ghost') {
     return readBody(req, body => {
       const bird = birdName(body.bird);
-      const level = Math.max(1, Math.min(100, Math.floor(Number(body.level) || 1)));
+      const level = Math.max(1, Math.min(120, Math.floor(Number(body.level) || 1)));
       const seconds = Math.max(0.1, Math.min(3600, Number(body.seconds) || 0.1));
       let samples = body.samples;
       if (typeof samples === 'string') { try { samples = JSON.parse(samples); } catch (e) { samples = []; } }
@@ -346,7 +346,7 @@ module.exports = function handler(req, res, seg) {
       const bird = birdName(body.bird);
       const score = Math.max(0, Math.min(1000000, Math.floor(Number(body.score) || 0)));
       const coins = Math.max(0, Math.min(100000, Math.floor(Number(body.coins) || 0)));
-      const level = Math.max(1, Math.min(100, Math.floor(Number(body.level) || 1)));
+      const level = Math.max(1, Math.min(120, Math.floor(Number(body.level) || 1)));
       const seconds = Math.max(0, Math.min(1000000, Math.floor(Number(body.seconds) || 0)));
       stmt.insertRun.run({ bird, score, coins, level, seconds, at: now() });
       const best = stmt.best.get(bird);
@@ -359,7 +359,7 @@ module.exports = function handler(req, res, seg) {
   if (req.method === 'POST' && route === 'progress') {
     return readBody(req, body => {
       const bird = birdName(body.bird);
-      const level = Math.max(1, Math.min(100, Math.floor(Number(body.level) || 1)));
+      const level = Math.max(1, Math.min(120, Math.floor(Number(body.level) || 1)));
       const score = Math.max(0, Math.min(1000000, Math.floor(Number(body.score) || 0)));
       const coins = Math.max(0, Math.min(100000, Math.floor(Number(body.coins) || 0)));
       stmt.upsertProgress.run({ bird, level, score, coins, updated: now() });
