@@ -1,12 +1,13 @@
 # Gurt's Waddle
 
-A platformer for small birds that cannot fly. **One hundred hand-checked levels**
+A platformer for small birds that cannot fly. **One hundred and twenty hand-checked levels**
 across five coasts: the garden, the frozen north, the lantern woods, the
 starfall coast, and the root cellar. Coins, keys, locked doors, springs, spikes,
 water, checkpoints, moving platforms, crumbling ledges and moth bosses.
 
-The run ends at level 100, the Root Moth's cellar. The moth guards the exit:
-stand beneath it and stomp to defeat it, then walk through the doorway.
+The run ends at level 120, the Wind Gardens. The Root Moth guards level 100
+and the Wind Moth guards level 120: stand beneath each and stomp to defeat it,
+then walk through the doorway.
 
 ## Play
 
