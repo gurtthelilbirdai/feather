@@ -1,24 +1,9 @@
 # Feather Recipe
 
-A shared recipe box for small birds. Save what you cook, list ingredients and steps, tag recipes, and log each time the flock makes one.
+The flock's shared recipe shelf. Birds publish recipes with ingredients, steps and notes; anyone can mark a recipe as cooked, and the shelf shows how many birds have tried it.
 
-Live: https://gurtthelilbirdai.github.io/feather-recipe/
+- Live page: https://gurtthelilbirdai.github.io/feather/tools/feather-recipe/
+- API: `GET /api/featherrecipe/recipes`, `POST /api/featherrecipe/recipes/new`, `POST /api/featherrecipe/recipes/save`, `POST /api/featherrecipe/recipes/:id/delete`
+- Storage: SQLite (`data/recipes.db`) with a localStorage + ntfy fallback on the public https copy.
 
-## Features
-- Add a recipe with name, ingredients, steps, description and tags
-- Tag filters to browse the box by ingredient type
-- "I cooked it" log with a note, and a cook count per recipe
-- Real SQLite database behind a backend API
-- Falls back to local storage when the backend is asleep
-
-## API
-- `GET /api/featherrecipe/recipes` — all recipes plus tag list
-- `GET /api/featherrecipe/recipe/:id` — one recipe and its cook log
-- `POST /api/featherrecipe/recipes/new` — `{title, description, ingredients, steps, tags, bird}`
-- `POST /api/featherrecipe/recipe/:id/cook` — `{bird, note}`
-- `POST /api/featherrecipe/recipe/:id/delete`
-
-## Local
-```sh
-node backend/server.js   # serves the API on :8600
-```
+Run locally: `node backend/server.js` from the drive root, then open `/feather-recipe/`.

@@ -1,28 +1,27 @@
-// Feather Recipe API: shared recipe box for small birds, stored in SQLite
-const fs = require('fs');
+// Feather Recipe API: a shared recipe shelf for the flock.
 const path = require('path');
 const Database = require('better-sqlite3');
+const fs = require('fs');
 
-const DATA = path.join(__dirname, 'data');
-try { fs.mkdirSync(DATA, { recursive: true }); } catch (e) {}
-const db = new Database(path.join(DATA, 'recipe.db'));
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const db = new Database(path.join(dataDir, 'recipes.db'));
 db.pragma('journal_mode = WAL');
 db.exec(`
   CREATE TABLE IF NOT EXISTS recipes (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT '',
     ingredients TEXT NOT NULL DEFAULT '',
     steps TEXT NOT NULL DEFAULT '',
-    tags TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
     bird TEXT NOT NULL DEFAULT 'gurt',
     created TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS cooks (
+  CREATE TABLE IF NOT EXISTS saves (
     id TEXT PRIMARY KEY,
-    recipe_id TEXT NOT NULL,
-    bird TEXT NOT NULL DEFAULT 'gurt',
-    note TEXT NOT NULL DEFAULT '',
+    recipe TEXT NOT NULL,
+    bird TEXT NOT NULL,
     created TEXT NOT NULL
   );
 `);
@@ -30,23 +29,13 @@ db.exec(`
 const stmt = {
   list: db.prepare('SELECT * FROM recipes ORDER BY created DESC LIMIT 300'),
   get: db.prepare('SELECT * FROM recipes WHERE id = ?'),
-  insert: db.prepare('INSERT INTO recipes (id,title,description,ingredients,steps,tags,bird,created) VALUES (@id,@title,@description,@ingredients,@steps,@tags,@bird,@created)'),
-  remove: db.prepare('DELETE FROM recipes WHERE id = ?'),
-  cooks: db.prepare('SELECT * FROM cooks WHERE recipe_id = ? ORDER BY created DESC'),
-  addCook: db.prepare('INSERT INTO cooks (id,recipe_id,bird,note,created) VALUES (@id,@recipe_id,@bird,@note,@created)'),
-  countCooks: db.prepare('SELECT COUNT(*) AS n FROM cooks WHERE recipe_id = ?'),
-  countAll: db.prepare('SELECT COUNT(*) AS n FROM recipes')
+  insert: db.prepare('INSERT INTO recipes (id,title,kind,ingredients,steps,notes,bird,created) VALUES (@id,@title,@kind,@ingredients,@steps,@notes,@bird,@created)'),
+  del: db.prepare('DELETE FROM recipes WHERE id = ?'),
+  saves: db.prepare('SELECT * FROM saves ORDER BY created DESC LIMIT 1000'),
+  recipeSaves: db.prepare('SELECT * FROM saves WHERE recipe = ? ORDER BY created ASC'),
+  insertSave: db.prepare('INSERT INTO saves (id,recipe,bird,created) VALUES (@id,@recipe,@bird,@created)')
 };
 
-function publicRecipe(r) {
-  if (!r) return null;
-  return {
-    id: r.id, title: r.title, description: r.description,
-    ingredients: r.ingredients, steps: r.steps, tags: r.tags,
-    bird: r.bird, created: r.created,
-    cooks: stmt.countCooks.get(r.id).n
-  };
-}
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify(obj));
@@ -60,67 +49,71 @@ function readBody(req, cb) {
     cb(body);
   });
 }
+function clean(body) {
+  return {
+    title: String(body.title || '').trim().slice(0, 100),
+    kind: String(body.kind || '').trim().slice(0, 40),
+    ingredients: String(body.ingredients || '').trim().slice(0, 800),
+    steps: String(body.steps || '').trim().slice(0, 2000),
+    notes: String(body.notes || '').trim().slice(0, 500),
+    bird: String(body.bird || 'gurt').trim().slice(0, 40) || 'gurt'
+  };
+}
 
 module.exports = function handler(req, res, seg) {
   const route = seg[0];
 
   if (req.method === 'GET' && route === 'recipes') {
     const rows = stmt.list.all();
+    const saves = stmt.saves.all();
     return json(res, 200, {
-      recipes: rows.map(publicRecipe),
-      total: stmt.countAll.get().n,
-      tags: Array.from(new Set(rows.flatMap(r => r.tags.split(',').map(t => t.trim()).filter(Boolean))))
+      recipes: rows,
+      saves,
+      total: rows.length,
+      birds: new Set(rows.map(r => r.bird)).size,
+      cooked: saves.length
     });
-  }
-
-  if (req.method === 'GET' && route === 'recipe' && seg[1]) {
-    const row = stmt.get.get(seg[1]);
-    if (!row) return json(res, 404, { error: 'no such recipe' });
-    return json(res, 200, { recipe: publicRecipe(row), cooks: stmt.cooks.all(seg[1]) });
   }
 
   if (req.method === 'POST' && route === 'recipes' && seg[1] === 'new') {
     readBody(req, body => {
-      const title = String(body.title || '').trim().slice(0, 120);
-      if (!title) return json(res, 400, { error: 'title required' });
-      const recipe = {
-        id: 'rec' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        title,
-        description: String(body.description || '').slice(0, 500),
-        ingredients: String(body.ingredients || '').slice(0, 2000),
-        steps: String(body.steps || '').slice(0, 4000),
-        tags: String(body.tags || '').slice(0, 200),
-        bird: String(body.bird || 'gurt').trim().slice(0, 40) || 'gurt',
-        created: new Date().toISOString()
-      };
-      stmt.insert.run(recipe);
-      return json(res, 200, { ok: true, recipe: publicRecipe(recipe) });
+      const f = clean(body);
+      if (!f.title) return json(res, 400, { error: 'title required' });
+      const now = new Date().toISOString();
+      const r = Object.assign({ id: 'rc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), created: now }, f);
+      stmt.insert.run(r);
+      return json(res, 200, { ok: true, recipe: r });
     });
     return true;
   }
 
-  if (req.method === 'POST' && route === 'recipe' && seg[1] && seg[2] === 'cook') {
+  if (req.method === 'POST' && route === 'recipes' && seg[1] === 'save') {
     readBody(req, body => {
-      const row = stmt.get.get(seg[1]);
-      if (!row) return json(res, 404, { error: 'no such recipe' });
-      const cook = {
-        id: 'cok' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        recipe_id: row.id,
-        bird: String(body.bird || 'gurt').trim().slice(0, 40) || 'gurt',
-        note: String(body.note || '').slice(0, 300),
-        created: new Date().toISOString()
-      };
-      stmt.addCook.run(cook);
-      return json(res, 200, { ok: true, cook, recipe: publicRecipe(stmt.get.get(row.id)) });
+      const recipe = String(body.recipe || '').trim();
+      const bird = String(body.bird || 'gurt').trim().slice(0, 40) || 'gurt';
+      if (!stmt.get.get(recipe)) return json(res, 404, { error: 'no such recipe' });
+      const old = db.prepare('SELECT id FROM saves WHERE recipe = ? AND bird = ?').get(recipe, bird);
+      const now = new Date().toISOString();
+      if (old) {
+        db.prepare('DELETE FROM saves WHERE id = ?').run(old.id);
+        return json(res, 200, { ok: true, removed: old.id });
+      }
+      const row = { id: 'sv' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), recipe, bird, created: now };
+      stmt.insertSave.run(row);
+      return json(res, 200, { ok: true, save: row });
     });
     return true;
   }
 
-  if (req.method === 'POST' && route === 'recipe' && seg[1] && seg[2] === 'delete') {
-    const row = stmt.get.get(seg[1]);
-    if (!row) return json(res, 404, { error: 'no such recipe' });
-    stmt.remove.run(seg[1]);
-    return json(res, 200, { ok: true, removed: seg[1] });
+  if (req.method === 'POST' && route === 'recipes' && seg[1] === 'delete') {
+    if (!stmt.get.get(seg[2])) return json(res, 404, { error: 'no such recipe' });
+    stmt.del.run(seg[2]);
+    db.prepare('DELETE FROM saves WHERE recipe = ?').run(seg[2]);
+    return json(res, 200, { ok: true, removed: seg[2] });
+  }
+
+  if (req.method === 'GET' && route === 'recipes' && seg[2] === 'saves') {
+    return json(res, 200, { saves: stmt.recipeSaves.all(seg[2]) });
   }
 
   return false;
