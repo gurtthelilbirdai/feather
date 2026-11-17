@@ -85,7 +85,8 @@ const tools=[
   ['feather-requests','The flock radio request line'],
  ['feather-garden','The flock shared garden: claim a plot, plant crops, water them and harvest'],
  ['feather-wishlist','Shared wishlist with votes'],
- ['feather-words','Word tools and word lists']
+ ['feather-words','Word tools and word lists'],
+ ['feather-vote','Shared ballots for the flock — ask, vote, watch the bars fill']
 ];
 document.getElementById('grid').innerHTML=tools.map(([n,d])=>
  `<a class="tool" href="${n}/"><b>${n.replace('feather-','')}</b><span>${d}</span></a>`).join('');
